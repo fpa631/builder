@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>型號產生器</title>
+<style>
+  :root{
+    --ink:#1c1a17; --ink-soft:#5a554d; --line:#d8d3c8; --line-soft:#e8e4da;
+    --paper:#f5f3ee; --card:#ffffff; --accent:#0f5c4a; --accent-soft:#e3efe9;
+    --warn:#b23a2e; --shadow:0 1px 2px rgba(30,25,18,.06);
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:"Noto Sans TC","Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--paper);line-height:1.5}
+  header{background:var(--card);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+  header h1{font-size:17px;margin:0;letter-spacing:.5px}
+  .tabs{display:flex;gap:4px;margin-left:auto}
+  .tab{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);padding:7px 16px;border-radius:6px;cursor:pointer;font-size:14px;font-family:inherit}
+  .tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .io{display:flex;gap:6px}
+  .io button{border:1px solid var(--line);background:var(--card);padding:7px 12px;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--ink-soft)}
+  .io button:hover{border-color:var(--accent);color:var(--accent)}
+  main{max-width:1000px;margin:0 auto;padding:24px 20px 80px}
+  .panel{display:none}
+  .panel.on{display:block}
+
+  /* series bar */
+  .seriesbar{display:flex;align-items:center;gap:10px;margin-bottom:22px;flex-wrap:wrap}
+  .seriesbar label{font-size:13px;color:var(--ink-soft)}
+  select,input[type=text]{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+  select:focus,input:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+
+  /* generator */
+  .fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+  .field label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:5px}
+  .field .req{color:var(--warn)}
+  .field select{width:100%}
+  .field.locked select{background:var(--line-soft);color:#a09a8e;cursor:not-allowed}
+  .field .hint{font-size:11px;color:var(--warn);margin-top:4px;min-height:14px}
+
+  .result{margin-top:28px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px;box-shadow:var(--shadow)}
+  .result .out{font-family:var(--mono);font-size:22px;letter-spacing:1px;color:var(--accent);word-break:break-all;min-height:30px}
+  .result .out .miss{color:#c3bdb0}
+  .result .desc{margin-top:12px;font-size:13px;color:var(--ink-soft);display:flex;flex-wrap:wrap;gap:4px 14px}
+  .result .desc span b{color:var(--ink);font-weight:600}
+  .copy{margin-top:16px;border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 20px;border-radius:6px;cursor:pointer;font-size:14px;font-family:inherit}
+  .copy:disabled{opacity:.4;cursor:not-allowed}
+
+  /* admin */
+  .admin-head{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+  .admin-head h2{font-size:16px;margin:0}
+  .btn{border:1px solid var(--line);background:var(--card);padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--ink)}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{color:#fff;filter:brightness(1.06)}
+  .btn.danger:hover{border-color:var(--warn);color:var(--warn)}
+  .series-meta{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .series-meta .mrow{display:flex;align-items:center;gap:10px;margin:6px 0;flex-wrap:wrap}
+  .series-meta label{font-size:13px;color:var(--ink-soft);width:64px}
+  .series-meta input[type=text]{flex:0 1 260px}
+  .series-meta .mhint{font-size:12px;color:var(--ink-soft)}
+  .addseries{display:flex;gap:8px;margin-bottom:22px}
+  .addseries input{flex:0 1 260px}
+  .btn.danger.armed{background:var(--warn);border-color:var(--warn);color:#fff}
+  .rulecard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow)}
+  .rulecard .rline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--ink-soft)}
+  .rulecard select{font-size:13px;padding:6px 8px}
+  .rulecard .conds{margin:8px 0 8px 14px;border-left:2px solid var(--accent-soft);padding-left:12px}
+  .rulecard .cond{display:flex;align-items:center;gap:6px;margin:5px 0}
+  .rulecard .delcond{border:none;background:none;color:#c3bdb0;cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px}
+  .rulecard .delcond:hover{color:var(--warn);background:#faeae8}
+  .rulecard .addcond{padding:4px 10px;font-size:12px}
+  .locked-opt{color:#bbb}
+  .chk{border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:6px;border:1px solid}
+  .chk.ok{background:var(--accent-soft);border-color:#cfe4dc;color:#0d4a3b}
+  .chk.bad{background:#faeae8;border-color:#e6c4bf;color:var(--warn)}
+  .chk b{font-weight:600}
+  .rulesec{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 18px 20px;margin-top:26px;box-shadow:var(--shadow)}
+  .rulesec > h2{font-size:15px;margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid var(--line-soft);letter-spacing:.5px}
+  .rulesec .rulecard{background:var(--paper)}
+  #admAddField{margin-top:10px}
+
+  .fieldcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .fc-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .fc-top .grip{cursor:default;color:#bbb;font-size:18px;user-select:none}
+  .fc-top input.fname{flex:1;min-width:140px;font-weight:600}
+  .fc-top .toggle{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft)}
+  .fc-move{display:flex;gap:3px}
+  .fc-move button{width:28px;height:28px;border:1px solid var(--line);background:var(--card);border-radius:5px;cursor:pointer;color:var(--ink-soft);font-size:13px;padding:0}
+  .fc-move button:hover{border-color:var(--accent);color:var(--accent)}
+
+  table.opts{width:100%;border-collapse:collapse;font-size:13px}
+  table.opts th{text-align:left;font-size:11px;color:var(--ink-soft);font-weight:500;padding:4px 8px;border-bottom:1px solid var(--line-soft)}
+  table.opts td{padding:4px 8px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+  table.opts input{width:100%;padding:6px 8px}
+  table.opts td.code input{font-family:var(--mono)}
+  table.opts td.act{width:34px;text-align:center}
+  table.opts .del{border:none;background:none;color:#c3bdb0;cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px}
+  table.opts .del:hover{color:var(--warn);background:#faeae8}
+  .addopt{margin-top:8px}
+  .empty{color:var(--ink-soft);font-size:14px;padding:40px 0;text-align:center}
+  .note{background:var(--accent-soft);border:1px solid #cfe4dc;color:#0d4a3b;font-size:12.5px;padding:10px 14px;border-radius:8px;margin-bottom:18px}
+  .savetag{font-size:12px;color:var(--ink-soft);margin-left:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>型號產生器</h1>
+  <div class="io">
+    <button id="btnExport">匯出設定</button>
+    <button id="btnImport">匯入設定</button>
+    <input type="file" id="fileImport" accept="application/json" hidden>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-tab="gen">產生器</button>
+    <button class="tab" data-tab="admin">後台編輯</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ 產生器 ============ -->
+  <section class="panel on" id="panel-gen">
+    <div class="seriesbar">
+      <label>選擇系列</label>
+      <select id="genSeries"></select>
+      <span class="savetag" id="genSeriesInfo"></span>
+    </div>
+    <div class="fields" id="genFields"></div>
+
+    <div class="result">
+      <div class="out" id="genOut"><span class="miss">選好選項後，這裡會顯示完整型號</span></div>
+      <div class="desc" id="genDesc"></div>
+      <button class="copy" id="genCopy" disabled>複製型號</button>
+    </div>
+  </section>
+
+  <!-- ============ 後台 ============ -->
+  <section class="panel" id="panel-admin">
+    <div class="note">
+      規則：每個「欄位」＝下拉選單，每個選項有<b>顯示名稱</b>（人看的）跟<b>代碼</b>（拼進型號的）。
+      不同系列各自獨立，改這個系列不會動到別的。改完自動存進瀏覽器；要換電腦或備份就用右上角「匯出設定」。
+    </div>
+
+    <div class="admin-head">
+      <h2>系列</h2>
+      <select id="admSeries"></select>
+      <button class="btn danger" id="admDelSeries">刪除此系列</button>
+    </div>
+
+    <div class="series-meta">
+      <div class="mrow">
+        <label>系列名稱</label>
+        <input type="text" id="admName" placeholder="例：P22-15">
+      </div>
+      <div class="mrow">
+        <label>固定前綴</label>
+        <input type="text" id="admPrefix" placeholder="型號開頭，可留空">
+      </div>
+      <div class="mrow">
+        <label>分隔符號</label>
+        <input type="text" id="admSep" maxlength="3" style="width:60px">
+        <span class="mhint">各段代碼的連接符，通常是 <b>-</b>；留空則直接相黏</span>
+      </div>
+    </div>
+
+    <div class="addseries">
+      <input type="text" id="admNewSeries" placeholder="新系列名稱">
+      <button class="btn primary" id="admAddSeries">＋ 新增系列</button>
+    </div>
+
+    <div id="admFields"></div>
+    <button class="btn primary" id="admAddField" style="margin-top:6px">＋ 新增欄位</button>
+
+    <section class="rulesec">
+      <h2>相依規則</h2>
+      <div class="note">
+        限制「某選項只有在其他欄位選了特定值時才能選」。範例：Wall Wash 只有在 <b>Beam=NF</b> 且 <b>Lens=LC</b> 時才可選。
+        一條規則可加多個條件（全部成立才解鎖）；同一目標選項若有多條規則，任一條成立即解鎖。
+      </div>
+      <div id="admRules"></div>
+      <button class="btn primary" id="admAddRule" style="margin-top:10px">＋ 新增規則</button>
+    </section>
+
+    <section class="rulesec">
+      <h2>互斥規則</h2>
+      <div class="note">
+        限制「以下選項不能同時出現」。選了群組內任一個，其餘就會被鎖住。範例：<b>Beam=WF</b> 與 <b>Lens=LF</b> 不能並存。
+        一個群組可放兩個以上成員，彼此互斥。
+      </div>
+      <div id="admExcl"></div>
+      <button class="btn primary" id="admAddExcl" style="margin-top:10px">＋ 新增互斥群組</button>
+    </section>
+
+    <section class="rulesec">
+      <h2>規則健檢</h2>
+      <div class="note">改過欄位名或選項代碼後，按一下檢查所有規則有沒有指到不存在的欄位／選項（孤兒規則）。</div>
+      <button class="btn" id="admCheck">檢查規則</button>
+      <div id="admCheckOut" style="margin-top:12px"></div>
+    </section>
+  </section>
+</main>
+
+<script>
+"use strict";
+const KEY = "modelBuilder.v1";
+
+/* ---------- 預設種子資料（可全部刪掉重建）---------- */
+const SEED = {
+  activeSeries: "P22-15",
+  series: {
+    "P22-15": {
+      sep: "-",
+      prefix: "P22-15",
+      fields: [
+        { name:"CCT/CRI", required:true, options:[
+          {label:"27K / 90CRI", code:"2790"},
+          {label:"30K / 90CRI", code:"3090"},
+          {label:"35K / 90CRI", code:"3590"},
+        ]},
+        { name:"Beam", required:true, options:[
+          {label:"Narrow Flood (NF)", code:"NF"},
+          {label:"Flood (FL)", code:"FL"},
+          {label:"Wide Flood (WF)", code:"WF"},
+        ]},
+        { name:"Lens", required:true, options:[
+          {label:"Clear (LC)", code:"LC"},
+          {label:"Frosted (LF)", code:"LF"},
+        ]},
+        { name:"Baffle", required:false, options:[
+          {label:"Black", code:"BK"},
+          {label:"White", code:"WH"},
+          {label:"Wall Wash (WW)", code:"WW"},
+        ]},
+      ],
+      rules: [
+        // 範例：Wall Wash 只有在 Beam=NF 且 Lens=LC 時才可選
+        { targetFieldName:"Baffle", targetCode:"WW",
+          when:[ {fieldName:"Beam", code:"NF"}, {fieldName:"Lens", code:"LC"} ] },
+      ],
+      exclusions: [
+        // 範例：Wide Flood 與 Frosted 鏡片不能同時選（示範用，可刪）
+        { members:[ {fieldName:"Beam", code:"WF"}, {fieldName:"Lens", code:"LF"} ] },
+      ]
+    }
+  }
+};
+
+/* ---------- 狀態 ---------- */
+let db = load();
+normalize();
+
+function normalize(){
+  Object.values(db.series||{}).forEach(s=>{
+    if(!Array.isArray(s.rules)) s.rules=[];
+    if(!Array.isArray(s.exclusions)) s.exclusions=[];
+    (s.fields||[]).forEach(f=>{ if(!Array.isArray(f.options)) f.options=[]; });
+  });
+}
+
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return structuredClone(SEED);
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch(e){ /* 檔案模式或無痕可能失敗，靠匯出備份 */ }
+}
+function seriesNames(){ return Object.keys(db.series); }
+function curAdminSeries(){ return document.getElementById("admSeries").value; }
+
+/* ================= 分頁 ================= */
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+    document.querySelectorAll(".panel").forEach(x=>x.classList.remove("on"));
+    t.classList.add("on");
+    document.getElementById("panel-"+t.dataset.tab).classList.add("on");
+    if(t.dataset.tab==="gen") renderGen();
+    else renderAdmin();
+  };
+});
+
+/* ================= 產生器 ================= */
+function renderGenSeriesOptions(){
+  const sel=document.getElementById("genSeries");
+  const names=seriesNames();
+  sel.innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join("");
+  if(names.includes(db.activeSeries)) sel.value=db.activeSeries;
+}
+function renderGen(){
+  renderGenSeriesOptions();
+  const name=document.getElementById("genSeries").value;
+  const s=db.series[name];
+  const wrap=document.getElementById("genFields");
+  if(!s){ wrap.innerHTML=""; buildOutput(); return; }
+  document.getElementById("genSeriesInfo").textContent =
+    s.prefix ? `固定前綴：${s.prefix}` : "無固定前綴";
+  wrap.innerHTML = s.fields.map((f,i)=>`
+    <div class="field" data-fi="${i}">
+      <label>${esc(f.name)||"（未命名）"}${f.required?' <span class="req">*</span>':''}</label>
+      <select data-fi="${i}">
+        <option value="">— 請選擇 —</option>
+        ${f.options.map((o,j)=>`<option value="${j}">${esc(o.label)||esc(o.code)}</option>`).join("")}
+      </select>
+      <div class="hint" data-fi="${i}"></div>
+    </div>`).join("");
+  wrap.querySelectorAll("select").forEach(sel=> sel.onchange=applyRules);
+  applyRules();
+}
+
+/* ---- 相依規則引擎 ---- */
+function labelFor(s,fieldName,code){
+  const f=(s.fields||[]).find(x=>x.name===fieldName); if(!f) return code;
+  const o=f.options.find(x=>x.code===code); return o ? (o.label||o.code) : code;
+}
+function isOptionAllowed(fieldName,code,rules,cur){
+  const rel=rules.filter(r=>r.targetFieldName===fieldName && r.targetCode===code);
+  if(!rel.length) return true;                 // 沒被任何相依規則管到 → 這關永遠過
+  return rel.some(r=> (r.when||[]).every(c=> cur[c.fieldName]===c.code )); // 任一規則條件全中即解鎖
+}
+// 互斥：目標選項是否因「同群組的其他成員已被選」而被鎖
+function excludedBy(fieldName,code,exclusions,cur){
+  for(const g of (exclusions||[])){
+    const members=g.members||[];
+    const isMember=members.some(m=>m.fieldName===fieldName && m.code===code);
+    if(!isMember) continue;
+    const clash=members.find(m=> !(m.fieldName===fieldName && m.code===code) && cur[m.fieldName]===m.code);
+    if(clash) return clash;                     // 回傳造成衝突的那個成員（給提示用）
+  }
+  return null;
+}
+function optionBlocked(fieldName,code,rules,exclusions,cur){
+  if(!isOptionAllowed(fieldName,code,rules,cur)) return true;
+  if(excludedBy(fieldName,code,exclusions,cur)) return true;
+  return false;
+}
+function readSelections(s,selects){
+  const cur={};
+  s.fields.forEach((f,i)=>{
+    const sel=selects.find(x=>+x.dataset.fi===i);
+    const v=sel ? sel.value : "";
+    cur[f.name]= v==="" ? null : (f.options[+v]?f.options[+v].code:null);
+  });
+  return cur;
+}
+function applyRules(){
+  const name=document.getElementById("genSeries").value;
+  const s=db.series[name];
+  if(!s){ buildOutput(); return; }
+  const rules=s.rules||[];
+  const exclusions=s.exclusions||[];
+  const selects=[...document.querySelectorAll('#genFields select[data-fi]')];
+
+  // 反覆掃描，處理連鎖（解鎖/上鎖後可能影響其他欄位），最多 8 回合防無限迴圈
+  for(let pass=0; pass<8; pass++){
+    const cur=readSelections(s,selects);
+    let changed=false;
+    s.fields.forEach((f,i)=>{
+      const sel=selects.find(x=>+x.dataset.fi===i);
+      f.options.forEach((o,j)=>{
+        const opt=sel.querySelector(`option[value="${j}"]`);
+        if(opt) opt.disabled = optionBlocked(f.name,o.code,rules,exclusions,cur);
+      });
+      if(sel.value!==""){
+        const o=f.options[+sel.value];
+        if(o && optionBlocked(f.name,o.code,rules,exclusions,cur)){ sel.value=""; changed=true; }
+      }
+    });
+    if(!changed) break;
+  }
+
+  // 產生每欄提示：列出目前被鎖住的選項與原因
+  const cur=readSelections(s,selects);
+  s.fields.forEach((f,i)=>{
+    const hint=document.querySelector(`#genFields .hint[data-fi="${i}"]`);
+    if(!hint) return;
+    const locked=[];
+    f.options.forEach(o=>{
+      const rel=rules.filter(r=>r.targetFieldName===f.name && r.targetCode===o.code);
+      if(rel.length && !isOptionAllowed(f.name,o.code,rules,cur)){
+        const req=(rel[0].when||[]).map(c=>`${c.fieldName}=${labelFor(s,c.fieldName,c.code)}`).join(" 且 ");
+        locked.push(req ? `「${o.label||o.code}」需 ${req}` : `「${o.label||o.code}」已鎖定`);
+        return;
+      }
+      const clash=excludedBy(f.name,o.code,exclusions,cur);
+      if(clash){
+        locked.push(`「${o.label||o.code}」與 ${clash.fieldName}=${labelFor(s,clash.fieldName,clash.code)} 互斥`);
+      }
+    });
+    hint.textContent = locked.join("；");
+  });
+
+  buildOutput();
+}
+function buildOutput(){
+  const name=document.getElementById("genSeries").value;
+  const s=db.series[name];
+  const out=document.getElementById("genOut");
+  const desc=document.getElementById("genDesc");
+  const copy=document.getElementById("genCopy");
+  if(!s){ out.innerHTML='<span class="miss">此系列尚未設定欄位</span>'; desc.innerHTML=""; copy.disabled=true; return; }
+
+  const sep = s.sep ?? "";
+  const parts = s.prefix ? [s.prefix] : [];
+  const descParts=[];
+  let complete=true;
+
+  s.fields.forEach((f,i)=>{
+    const sel=document.querySelector(`#genFields select[data-fi="${i}"]`);
+    const v=sel ? sel.value : "";
+    if(v===""){
+      if(f.required) complete=false;
+      return;
+    }
+    const o=f.options[+v];
+    parts.push(o.code);
+    descParts.push(`<span><b>${esc(f.name)}:</b> ${esc(o.label)||esc(o.code)}</span>`);
+  });
+
+  const model = parts.join(sep);
+  if(parts.length && (s.prefix || descParts.length)){
+    out.textContent = model;
+    if(!complete){ out.innerHTML = esc(model)+' <span class="miss">（尚有必填未選）</span>'; }
+  }else{
+    out.innerHTML='<span class="miss">選好選項後，這裡會顯示完整型號</span>';
+  }
+  desc.innerHTML = descParts.join("");
+  copy.disabled = !(complete && parts.length>0);
+  copy.dataset.model = complete ? model : "";
+}
+document.getElementById("genSeries").onchange=()=>{
+  db.activeSeries=document.getElementById("genSeries").value; save(); renderGen();
+};
+document.getElementById("genCopy").onclick=async e=>{
+  const m=e.target.dataset.model; if(!m) return;
+  try{ await navigator.clipboard.writeText(m); e.target.textContent="已複製 ✓";
+    setTimeout(()=>e.target.textContent="複製型號",1200);
+  }catch(err){ e.target.textContent="複製失敗"; }
+};
+
+/* ================= 後台 ================= */
+function renderAdminSeriesOptions(keep){
+  const sel=document.getElementById("admSeries");
+  const names=seriesNames();
+  const prev = keep && names.includes(keep) ? keep : (names.includes(sel.value)?sel.value:names[0]);
+  sel.innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join("");
+  if(prev) sel.value=prev;
+}
+function renderAdmin(keepSeries){
+  renderAdminSeriesOptions(keepSeries);
+  const name=curAdminSeries();
+  const s=db.series[name];
+  const wrap=document.getElementById("admFields");
+  if(!s){
+    wrap.innerHTML='<div class="empty">還沒有任何系列，在下方輸入名稱後按「新增系列」。</div>';
+    document.getElementById("admName").value="";
+    document.getElementById("admPrefix").value="";
+    document.getElementById("admSep").value="";
+    document.getElementById("admRules").innerHTML="";
+    document.getElementById("admExcl").innerHTML="";
+    return;
+  }
+  if(!Array.isArray(s.rules)) s.rules=[];
+  if(!Array.isArray(s.exclusions)) s.exclusions=[];
+  document.getElementById("admName").value = name;
+  document.getElementById("admPrefix").value = s.prefix ?? "";
+  document.getElementById("admSep").value = s.sep ?? "";
+  const chk=document.getElementById("admCheckOut"); if(chk) chk.innerHTML="";
+  disarmDelete();
+  if(!s.fields.length){
+    wrap.innerHTML='<div class="empty">此系列還沒有欄位，按下方「新增欄位」開始建。</div>';
+    renderAdminRules(s,name);
+    renderAdminExcl(s,name);
+    return;
+  }
+  wrap.innerHTML = s.fields.map((f,i)=>fieldCardHTML(f,i,s.fields.length)).join("");
+  bindFieldCards();
+  renderAdminRules(s,name);
+  renderAdminExcl(s,name);
+}
+
+/* ---- 後台：相依規則編輯 ---- */
+function fieldSelectHTML(s,chosen,cls){
+  return `<select class="${cls}"><option value="">—欄位—</option>${
+    s.fields.map(f=>`<option value="${esc(f.name)}" ${f.name===chosen?"selected":""}>${esc(f.name)||"（未命名）"}</option>`).join("")
+  }</select>`;
+}
+function valueSelectHTML(s,fieldName,chosenCode,cls){
+  const f=s.fields.find(x=>x.name===fieldName);
+  const opts=f?f.options:[];
+  return `<select class="${cls}"><option value="">—值—</option>${
+    opts.map(o=>`<option value="${esc(o.code)}" ${o.code===chosenCode?"selected":""}>${esc(o.label)||esc(o.code)}</option>`).join("")
+  }</select>`;
+}
+function renderAdminRules(s,name){
+  const wrap=document.getElementById("admRules");
+  const rules=s.rules||[];
+  if(!rules.length){ wrap.innerHTML='<div class="empty" style="padding:16px 0">尚無規則，所有選項預設皆可選。</div>'; return; }
+  wrap.innerHTML=rules.map((r,ri)=>`
+    <div class="rulecard" data-ri="${ri}">
+      <div class="rline"><span>只有當</span></div>
+      <div class="conds">
+        ${(r.when||[]).map((c,ci)=>`
+          <div class="cond" data-ci="${ci}">
+            ${fieldSelectHTML(s,c.fieldName,"cfield")}<span>=</span>${valueSelectHTML(s,c.fieldName,c.code,"cval")}
+            <button class="delcond" title="刪除條件">×</button>
+          </div>`).join("")}
+      </div>
+      <button class="btn addcond">＋ 新增條件（且）</button>
+      <div class="rline" style="margin-top:10px">
+        <span>時，才可選</span>${fieldSelectHTML(s,r.targetFieldName,"tfield")}<span>的</span>${valueSelectHTML(s,r.targetFieldName,r.targetCode,"tval")}
+        <button class="btn danger delrule" style="margin-left:auto">刪除規則</button>
+      </div>
+    </div>`).join("");
+  bindRuleCards(s,name);
+}
+function bindRuleCards(s,name){
+  document.querySelectorAll("#admRules .rulecard").forEach(card=>{
+    const ri=+card.dataset.ri; const r=s.rules[ri];
+    card.querySelector(".tfield").onchange=e=>{ r.targetFieldName=e.target.value; r.targetCode=""; save(); renderAdminRules(s,name); };
+    card.querySelector(".tval").onchange=e=>{ r.targetCode=e.target.value; save(); };
+    card.querySelector(".addcond").onclick=()=>{ (r.when=r.when||[]).push({fieldName:"",code:""}); save(); renderAdminRules(s,name); };
+    card.querySelector(".delrule").onclick=()=>{ s.rules.splice(ri,1); save(); renderAdminRules(s,name); };
+    card.querySelectorAll(".cond").forEach(cel=>{
+      const ci=+cel.dataset.ci; const c=r.when[ci];
+      cel.querySelector(".cfield").onchange=e=>{ c.fieldName=e.target.value; c.code=""; save(); renderAdminRules(s,name); };
+      cel.querySelector(".cval").onchange=e=>{ c.code=e.target.value; save(); };
+      cel.querySelector(".delcond").onclick=()=>{ r.when.splice(ci,1); save(); renderAdminRules(s,name); };
+    });
+  });
+}
+
+/* ---- 後台：互斥規則編輯 ---- */
+function renderAdminExcl(s,name){
+  const wrap=document.getElementById("admExcl");
+  const list=s.exclusions||[];
+  if(!list.length){ wrap.innerHTML='<div class="empty" style="padding:16px 0">尚無互斥群組。</div>'; return; }
+  wrap.innerHTML=list.map((g,gi)=>`
+    <div class="rulecard" data-gi="${gi}">
+      <div class="rline"><span>以下選項不能同時選：</span>
+        <button class="btn danger delgrp" style="margin-left:auto">刪除群組</button>
+      </div>
+      <div class="conds">
+        ${(g.members||[]).map((m,mi)=>`
+          <div class="cond" data-mi="${mi}">
+            ${fieldSelectHTML(s,m.fieldName,"mfield")}<span>=</span>${valueSelectHTML(s,m.fieldName,m.code,"mval")}
+            <button class="delmem" title="移除成員">×</button>
+          </div>`).join("")}
+      </div>
+      <button class="btn addmem">＋ 新增成員</button>
+    </div>`).join("");
+  bindExclCards(s,name);
+}
+function bindExclCards(s,name){
+  document.querySelectorAll("#admExcl .rulecard").forEach(card=>{
+    const gi=+card.dataset.gi; const g=s.exclusions[gi];
+    card.querySelector(".delgrp").onclick=()=>{ s.exclusions.splice(gi,1); save(); renderAdminExcl(s,name); };
+    card.querySelector(".addmem").onclick=()=>{ (g.members=g.members||[]).push({fieldName:"",code:""}); save(); renderAdminExcl(s,name); };
+    card.querySelectorAll(".cond").forEach(cel=>{
+      const mi=+cel.dataset.mi; const m=g.members[mi];
+      cel.querySelector(".mfield").onchange=e=>{ m.fieldName=e.target.value; m.code=""; save(); renderAdminExcl(s,name); };
+      cel.querySelector(".mval").onchange=e=>{ m.code=e.target.value; save(); };
+      cel.querySelector(".delmem").onclick=()=>{ g.members.splice(mi,1); save(); renderAdminExcl(s,name); };
+    });
+  });
+}
+function fieldCardHTML(f,i,total){
+  return `
+  <div class="fieldcard" data-fi="${i}">
+    <div class="fc-top">
+      <span class="grip">≡</span>
+      <input type="text" class="fname" value="${esc(f.name)}" placeholder="欄位名稱，例：CCT/CRI">
+      <label class="toggle"><input type="checkbox" class="freq" ${f.required?"checked":""}> 必填</label>
+      <div class="fc-move">
+        <button class="up" ${i===0?"disabled":""} title="上移">▲</button>
+        <button class="down" ${i===total-1?"disabled":""} title="下移">▼</button>
+        <button class="delf danger" title="刪除欄位" style="color:#c99">✕</button>
+      </div>
+    </div>
+    <table class="opts">
+      <thead><tr><th style="width:48%">顯示名稱</th><th style="width:40%">代碼</th><th></th></tr></thead>
+      <tbody>
+        ${f.options.map((o,j)=>`
+          <tr data-oi="${j}">
+            <td><input type="text" class="olabel" value="${esc(o.label)}" placeholder="人看的說明"></td>
+            <td class="code"><input type="text" class="ocode" value="${esc(o.code)}" placeholder="拼進型號"></td>
+            <td class="act"><button class="del" title="刪除">×</button></td>
+          </tr>`).join("")}
+      </tbody>
+    </table>
+    <button class="btn addopt" style="margin-top:8px">＋ 新增選項</button>
+  </div>`;
+}
+function bindFieldCards(){
+  const name=curAdminSeries(); const s=db.series[name];
+  document.querySelectorAll("#admFields .fieldcard").forEach(card=>{
+    const fi=+card.dataset.fi;
+    card.querySelector(".fname").oninput=e=>{ s.fields[fi].name=e.target.value; save(); };
+    card.querySelector(".freq").onchange=e=>{ s.fields[fi].required=e.target.checked; save(); };
+    card.querySelector(".up").onclick=()=>{ moveField(fi,-1); };
+    card.querySelector(".down").onclick=()=>{ moveField(fi,1); };
+    card.querySelector(".delf").onclick=()=>{
+      if(confirm(`刪除欄位「${s.fields[fi].name||"（未命名）"}」？`)){ s.fields.splice(fi,1); save(); renderAdmin(name); }
+    };
+    card.querySelector(".addopt").onclick=()=>{
+      s.fields[fi].options.push({label:"",code:""}); save(); renderAdmin(name);
+    };
+    card.querySelectorAll("tbody tr").forEach(tr=>{
+      const oi=+tr.dataset.oi;
+      tr.querySelector(".olabel").oninput=e=>{ s.fields[fi].options[oi].label=e.target.value; save(); };
+      tr.querySelector(".ocode").oninput=e=>{ s.fields[fi].options[oi].code=e.target.value; save(); };
+      tr.querySelector(".del").onclick=()=>{ s.fields[fi].options.splice(oi,1); save(); renderAdmin(name); };
+    });
+  });
+}
+function moveField(i,dir){
+  const s=db.series[curAdminSeries()];
+  const j=i+dir; if(j<0||j>=s.fields.length) return;
+  [s.fields[i],s.fields[j]]=[s.fields[j],s.fields[i]];
+  save(); renderAdmin(curAdminSeries());
+}
+
+document.getElementById("admSeries").onchange=()=>renderAdmin(curAdminSeries());
+document.getElementById("admSep").oninput=e=>{ const s=db.series[curAdminSeries()]; if(s){s.sep=e.target.value; save();} };
+document.getElementById("admPrefix").oninput=e=>{ const s=db.series[curAdminSeries()]; if(s){s.prefix=e.target.value; save();} };
+
+/* 系列改名：直接改文字框，鍵入即改（離開輸入框時套用，避免每打一字重建）*/
+document.getElementById("admName").onchange=e=>{
+  const old=curAdminSeries();
+  const n=e.target.value.trim();
+  if(!old) return;
+  if(!n){ e.target.value=old; return; }              // 不准空白
+  if(n===old) return;
+  if(db.series[n]){ alert("已有同名系列，換一個。"); e.target.value=old; return; }
+  const rebuilt={};
+  Object.keys(db.series).forEach(k=>{ rebuilt[k===old?n:k] = (k===old?db.series[old]:db.series[k]); });
+  db.series=rebuilt;
+  if(db.activeSeries===old) db.activeSeries=n;
+  save(); renderAdmin(n); renderGenSeriesOptions();
+};
+
+document.getElementById("admAddField").onclick=()=>{
+  const s=db.series[curAdminSeries()]; if(!s) return;
+  s.fields.push({name:"",required:false,options:[{label:"",code:""}]}); save(); renderAdmin(curAdminSeries());
+};
+
+document.getElementById("admAddRule").onclick=()=>{
+  const s=db.series[curAdminSeries()]; if(!s) return;
+  if(!s.fields.length){ alert("請先建立欄位，才能設定相依規則。"); return; }
+  (s.rules=s.rules||[]).push({ targetFieldName:"", targetCode:"", when:[{fieldName:"",code:""}] });
+  save(); renderAdminRules(s,curAdminSeries());
+};
+
+document.getElementById("admAddExcl").onclick=()=>{
+  const s=db.series[curAdminSeries()]; if(!s) return;
+  if(!s.fields.length){ alert("請先建立欄位，才能設定互斥規則。"); return; }
+  (s.exclusions=s.exclusions||[]).push({ members:[{fieldName:"",code:""},{fieldName:"",code:""}] });
+  save(); renderAdminExcl(s,curAdminSeries());
+};
+
+/* ---- 規則健檢：找出指到不存在欄位／代碼的孤兒規則 ---- */
+function refExists(s,fieldName,code){
+  const f=(s.fields||[]).find(x=>x.name===fieldName);
+  if(!f) return "no-field";                                   // 欄位不存在
+  if(code!=="" && !f.options.some(o=>o.code===code)) return "no-code"; // 欄位在、代碼不在
+  return "ok";
+}
+function checkRef(s,fieldName,code,label){
+  if(!fieldName) return `${label}：<b>尚未選欄位</b>`;
+  const r=refExists(s,fieldName,code);
+  if(r==="no-field") return `${label}：找不到欄位「<b>${esc(fieldName)}</b>」（可能被改名或刪除）`;
+  if(r==="no-code")  return `${label}：欄位「${esc(fieldName)}」內找不到代碼「<b>${esc(code)}</b>」（可能被改過）`;
+  return null;                                                // ok
+}
+document.getElementById("admCheck").onclick=()=>{
+  const s=db.series[curAdminSeries()];
+  const out=document.getElementById("admCheckOut");
+  if(!s){ out.innerHTML=""; return; }
+  const problems=[];
+
+  (s.rules||[]).forEach((r,i)=>{
+    const tag=`相依規則 #${i+1}`;
+    const t=checkRef(s,r.targetFieldName,r.targetCode,`${tag} 目標`);
+    if(t) problems.push(t);
+    (r.when||[]).forEach((c,ci)=>{
+      const w=checkRef(s,c.fieldName,c.code,`${tag} 條件${ci+1}`);
+      if(w) problems.push(w);
+    });
+    if(!(r.when||[]).length) problems.push(`${tag}：沒有任何條件，會讓目標選項永遠鎖死`);
+  });
+
+  (s.exclusions||[]).forEach((g,i)=>{
+    const tag=`互斥群組 #${i+1}`;
+    const members=g.members||[];
+    members.forEach((m,mi)=>{
+      const w=checkRef(s,m.fieldName,m.code,`${tag} 成員${mi+1}`);
+      if(w) problems.push(w);
+    });
+    if(members.filter(m=>m.fieldName).length<2) problems.push(`${tag}：成員少於 2 個，互斥不會生效`);
+  });
+
+  if(!problems.length){
+    out.innerHTML=`<div class="chk ok">✓ 全部正常，共檢查 ${(s.rules||[]).length} 條相依規則、${(s.exclusions||[]).length} 個互斥群組。</div>`;
+  }else{
+    out.innerHTML=`<div class="chk ok">共檢查 ${(s.rules||[]).length} 條相依規則、${(s.exclusions||[]).length} 個互斥群組，發現 ${problems.length} 項問題：</div>`
+      + problems.map(p=>`<div class="chk bad">⚠ ${p}</div>`).join("");
+  }
+};
+
+document.getElementById("admAddSeries").onclick=()=>{
+  const inp=document.getElementById("admNewSeries");
+  const n=inp.value.trim();
+  if(!n){ inp.focus(); return; }
+  if(db.series[n]){ alert("已有同名系列。"); return; }
+  db.series[n]={sep:"-",prefix:n,fields:[]}; db.activeSeries=n;
+  inp.value=""; save(); renderAdmin(n);
+};
+document.getElementById("admNewSeries").onkeydown=e=>{ if(e.key==="Enter") document.getElementById("admAddSeries").click(); };
+
+/* 兩段式刪除，不用 confirm 跳窗 */
+let delTimer=null;
+function disarmDelete(){
+  const b=document.getElementById("admDelSeries");
+  b.classList.remove("armed"); b.textContent="刪除此系列";
+  if(delTimer){ clearTimeout(delTimer); delTimer=null; }
+}
+document.getElementById("admDelSeries").onclick=e=>{
+  const b=e.target;
+  const name=curAdminSeries(); if(!name) return;
+  if(!b.classList.contains("armed")){
+    b.classList.add("armed"); b.textContent="再按一次確認刪除";
+    delTimer=setTimeout(disarmDelete,3000);
+    return;
+  }
+  delete db.series[name];
+  const rest=seriesNames();
+  db.activeSeries=rest[0]||"";
+  disarmDelete();
+  save(); renderAdmin(rest[0]); renderGenSeriesOptions();
+};
+
+/* ================= 匯出 / 匯入 ================= */
+document.getElementById("btnExport").onclick=()=>{
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="model-builder-config.json";
+  a.click(); URL.revokeObjectURL(a.href);
+};
+document.getElementById("btnImport").onclick=()=>document.getElementById("fileImport").click();
+document.getElementById("fileImport").onchange=e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const obj=JSON.parse(r.result);
+      if(!obj.series||typeof obj.series!=="object") throw new Error("格式不符");
+      db=obj; save();
+      renderGen(); renderAdmin();
+      alert("匯入成功。");
+    }catch(err){ alert("匯入失敗：檔案格式不正確。"); }
+    e.target.value="";
+  };
+  r.readAsText(file);
+};
+
+/* ---------- utils ---------- */
+function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* init */
+renderGen();
+renderAdmin();
+</script>
+</body>
+</html>
